@@ -1,16 +1,19 @@
-library('curl')    # download files
-library('readxl')  # read from Excel sheets
-library('tidyr')   # data processing
-library('dplyr')   # mo data processing
+library('curl')    # Para descargar archivos
+library('readxl')  # Para leer Hojas de Excel 
+library('tidyr')   # Procesar data 
+library('dplyr')   # mo data proce
 library('forcats') # mo mo data processing
 library('ggplot2') # para graficar
-library("sf")
-library("sp")
-library(rgdal)
+library("sf")      # para datos espaciales
+library("sp")      # para datos espaciales
+library("rgdal")    # para datos espaciales
 
-i <- "C:/Users/Lechu/Desktop/DiscoPosMorten/Investigacion/0-Propia/TESIS_DOCTORAL/AnalsisDatosFW/DatosSelvaSRL/ProcesamientoVIdeo/Track_2019-10-09 164842.gpx"
+#Direccion del archivo GPX
 
-datos <- st_read(i, layer = "track_points") #lectura de datos
+dir <- "C:/Users/Lechu/Desktop/DiscoPosMorten/Investigacion/0-Propia/TESIS_DOCTORAL/AnalsisDatosFW/DatosSelvaSRL/ProcesamientoVIdeo/Track_2019-10-09 164842.gpx"
+
+
+datos <- st_read(dir, layer = "track_points") #lectura de datos
 
 
 #fecha <- as.Date(data$time) #Funciona pero lo de abajo tambien
@@ -26,40 +29,52 @@ sfc_as_cols <- function(x, names = c("x","y")) {
   ret <- setNames(ret,names)
   dplyr::bind_cols(x,ret)
 }
+
 Transformacion <- sfc_as_cols(datos, names = c("X","Y"))
-lat_geo <- Transformacion$X
-lon_geo <- Transformacion$Y
+lon_geo <- Transformacion$X
+lat_geo <- Transformacion$Y
 
 #Proyectar a UTM
-datos1 <- rgdal::readOGR(i, layer = "track_points")
-Proy <- spTransform(datos1, CRS("+proj=utm +zone=21 +south +ellps=WGS84 +datum=WGS84 +units=m +no_defs"))
-latlon <- Proy@coords
-lat_utm <- latlon[,1]
-lon_utm <- latlon[,2]
+datos1 <- rgdal::readOGR(dir, layer = "track_points")
+Proy <- spTransform(datos1, CRS("+proj=utm +zone=21 +south +ellps=WGS84 +datum=WGS84 +units=m +no_defs")) #Proyeccion de las coordenadas a UTM 21S
+latlon <- Proy@coords # posee los objetos como 
+lon_utm <- latlon[,1] # Guarda la longitud reproyectada en un objeto 
+lat_utm <- latlon[,2] # Guarda la latitud reproyectada en un objeto 
 
+# Hora actual 
 a <- data.frame()
 for(i in 1:length(datos$time)){
-colnames(a) <- "tiempo"
 a[1,1] <- 0  
 a[i,1] <- difftime(datos$time[i+1], datos$time[i], units = "secs")  
 }
-
+colnames(a) <- "tiempo_GPS"
 # hora local 
 hrs <- function(u) { #Funcion para calcular hs
   x <- u * 3600
   return(x)
 }
 
-horalocal <- datos$time + hrs(3)
-horalocal <- format(as.POSIXct(horalocal,format="%Y:%m:%d %H:%M:%S"),"%H:%M:%S")
+horal <- datos$time + hrs(3)
+horal <- format(as.POSIXct(horal,format="%Y:%m:%d %H:%M:%S"),"%H:%M:%S")
+
 
 #distancia
-distancia <- 
+distancia <- data.frame()
+for(i in 1:(length(lat_utm)-1)){
+  distancia[i+1,1] <- sqrt(((lat_utm[i]-lat_utm[i+1])^2)+((lon_utm[i]-lon_utm[i+1])^2)) 
+} #bucle for para calcular la distancia euclidea
+colnames(distancia) <- "distancia"
+head(distancia)  
 
-matriz<- cbind(lat_geo,lon_geo,lat_utm,lon_utm,a, hora, horalocal)
-head(matriz)
+# Juntamos todo en una matriz
+elevacion <- datos$ele
+fechahora <- datos$time
+
+matriz<- cbind(elevacion,fechahora,lat_geo,lon_geo,lat_utm,lon_utm,a, hora, horal, distancia)
+head(matriz, n=5L)
 str(matriz)
 
+write.csv(matriz, "gpxprocess.csv")
 
 track <- coordinates(datos)
 track <- Line(track)
